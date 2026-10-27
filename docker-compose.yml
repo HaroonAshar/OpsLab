@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${PGDATABASE:-opslab_db}
+      POSTGRES_USER: ${PGUSER:-opslab_user}
+      POSTGRES_PASSWORD: ${PGPASSWORD:?Set PGPASSWORD in config/db.env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    env_file:
+      - ./config/db.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8000
+      PGHOST: db
+      PGPORT: 5432
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
