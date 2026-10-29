@@ -1,0 +1,52 @@
+name: OpsLab CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: opslab_db
+          POSTGRES_USER: opslab_user
+          POSTGRES_PASSWORD: ci_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U opslab_user -d opslab_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: opslab_db
+      PGUSER: opslab_user
+      PGPASSWORD: ci_test_password
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install "psycopg[binary]"
+
+      - name: Create database table
+        run: |
+          python -c "import psycopg, os; c=psycopg.connect(host=os.environ['PGHOST'], port=os.environ['PGPORT'], dbname=os.environ['PGDATABASE'], user=os.environ['PGUSER'], password=os.environ['PGPASSWORD']); c.execute('CREATE TABLE tasks (id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, title VARCHAR(255) NOT NULL, completed BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())'); c.commit(); c.close()"
+
+      - name: Test database connection
+        run: python backend/test_db.py
